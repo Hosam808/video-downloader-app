@@ -355,16 +355,12 @@ HTML_TEMPLATE = '''
             .then(data => {
                 downloadBtn.disabled = false;
                 
-                if (data.success && data.formats && data.formats.length > 1) {
+                if (data.success && data.formats && data.formats.length > 0) {
                     showQualityOptions(data.formats);
                     messageDiv.className = 'message success';
                     messageDiv.innerHTML = '✅ اختر الجودة ثم اضغط تحميل';
                     downloadBtn.innerHTML = 'تحميل 🚀';
                     downloadBtn.onclick = downloadWithQuality;
-                } else if (data.success) {
-                    messageDiv.className = 'message loading';
-                    messageDiv.innerHTML = '⏳ جاري التحميل...';
-                    proceedDownload(url, selectedQuality);
                 } else {
                     messageDiv.className = 'message error';
                     messageDiv.textContent = '❌ ' + (data.error || 'خطأ غير معروف');
@@ -492,10 +488,13 @@ def get_formats():
             'no_warnings': True,
             'extract_flat': False,
             'nocheckcertificate': True,
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['android', 'web']
+                }
+            },
             'http_headers': {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                'Accept-Language': 'en-us,en;q=0.5',
             }
         }
         
@@ -503,51 +502,46 @@ def get_formats():
             info = ydl.extract_info(url, download=False)
             
             formats = []
-            seen_resolutions = set()
+            seen_heights = set()
             
-            for f in info.get('formats', []):
+            # جلب الجودات الشائعة بأسلوب دقيق يعتمد على الارتفاع (height)
+            raw_formats = info.get('formats', [])
+            
+            for f in raw_formats:
                 height = f.get('height')
-                if height and f.get('vcodec') != 'none':
-                    if height not in seen_resolutions:
-                        seen_resolutions.add(height)
-                        has_audio = f.get('acodec') != 'none'
-                        filesize = f.get('filesize')
-                        size_str = ''
-                        if filesize:
-                            if filesize < 1024 * 1024:
-                                size_str = f"({filesize/1024:.0f}KB)"
-                            elif filesize < 100 * 1024 * 1024:
-                                size_str = f"({filesize/(1024*1024):.0f}MB)"
-                            else:
-                                size_str = "(حجم كبير)"
+                vcodec = f.get('vcodec', 'none')
+                
+                if height and vcodec != 'none' and height >= 144:
+                    if height not in seen_heights:
+                        seen_heights.add(height)
                         
-                        audio_icon = '🔊' if has_audio else '🔇'
+                        # نطلب اختيار صيغة الفيديو بهذه الدقة المحددة مع أفضل صوت
+                        format_spec = f"bestvideo[height={height}]+bestaudio/best[height={height}]/best"
+                        
                         formats.append({
-                            'id': f"{f['format_id']}+bestaudio/best",
-                            'label': f"{audio_icon} {height}p {size_str}",
-                            'quality': f"{height}p"
+                            'id': format_spec,
+                            'label': f"🔊 {height}p",
+                            'height': height
                         })
             
-            formats.sort(key=lambda x: int(x['quality'].replace('p', '')), reverse=True)
+            # ترتيب الجودات من الأكبر للأصغر
+            formats.sort(key=lambda x: x['height'], reverse=True)
             
             if not formats:
                 formats = [{
-                    'id': 'best[ext=mp4]/best',
+                    'id': 'bestvideo+bestaudio/best',
                     'label': '🎬 أفضل جودة متاحة',
-                    'quality': 'best'
+                    'height': 0
                 }]
             
             return jsonify({
                 'success': True,
-                'formats': formats[:10],
+                'formats': formats[:8],
                 'title': info.get('title', 'Unknown')[:100]
             })
                 
     except Exception as e:
-        error_msg = str(e)
-        if 'Sign in to confirm' in error_msg:
-            error_msg = 'يوتيوب يطلب تأكيد بشري. جاري تجربة طريقة بديلة...'
-        return jsonify({'success': False, 'error': error_msg[:200]})
+        return jsonify({'success': False, 'error': f'تعذر قراءة الجودات: {str(e)[:150]}'})
 
 @app.route('/download', methods=['POST'])
 def download():
@@ -568,6 +562,11 @@ def download():
             'no_warnings': True,
             'restrictfilenames': True,
             'nocheckcertificate': True,
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['android', 'web']
+                }
+            },
             'http_headers': {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
             },
@@ -579,7 +578,7 @@ def download():
             
             if not os.path.exists(filename):
                 base = filename.rsplit('.', 1)[0]
-                for ext in ['mp4', 'webm', 'mkv']:
+                for ext in ['mp4', 'mkv', 'webm']:
                     test_path = f"{base}.{ext}"
                     if os.path.exists(test_path):
                         filename = test_path
@@ -652,3 +651,4 @@ def get_file(file_id):
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+
