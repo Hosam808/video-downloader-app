@@ -252,7 +252,7 @@ HTML_TEMPLATE = '''
     <div class="container">
         <div class="logo-icon">🎥</div>
         <h1>محمل الفيديوهات</h1>
-        <p class="subtitle">حمل من أي منصة بأعلى جودة تلقائياً</p>
+        <p class="subtitle">حمل من أي منصة بأفضل جودة تلقائياً</p>
         
         <div class="input-group">
             <span class="input-icon">🔗</span>
@@ -285,7 +285,7 @@ HTML_TEMPLATE = '''
             downloadBtn.disabled = true;
             downloadBtn.innerHTML = '⏳ جاري التحميل... <span class="spinner"></span>';
             messageDiv.className = 'message loading';
-            messageDiv.innerHTML = '📥 جاري معالجة الفيديو وتحميله بليستة أفضل جودة...';
+            messageDiv.innerHTML = '📥 جاري التحميل من السيرفر بأفضل جودة...';
             
             fetch('/download', {
                 method: 'POST',
@@ -300,10 +300,10 @@ HTML_TEMPLATE = '''
                 if (data.success) {
                     messageDiv.className = 'message success';
                     messageDiv.innerHTML = `
-                        ✅ تم تجهيز الفيديو بنجاح!
+                        ✅ تم التجهيز!
                         <br>📁 ${data.filename}
-                        <br>📏 الحجم: ${data.size}
-                        <br><a href="/get-file/${data.file_id}" class="download-btn" download>📥 اضغط هنا للتحميل المباشر</a>
+                        <br>📏 ${data.size}
+                        <br><a href="/get-file/${data.file_id}" class="download-btn" download>📥 تحميل الآن</a>
                     `;
                 } else {
                     messageDiv.className = 'message error';
@@ -314,7 +314,7 @@ HTML_TEMPLATE = '''
                 downloadBtn.disabled = false;
                 downloadBtn.innerHTML = 'تحميل 🚀';
                 messageDiv.className = 'message error';
-                messageDiv.textContent = '❌ حدث خطأ في الاتصال بالسيرفر';
+                messageDiv.textContent = '❌ حدث خطأ في الاتصال';
             });
         }
     </script>
@@ -325,6 +325,7 @@ HTML_TEMPLATE = '''
 prepared_files = {}
 
 def cleanup_old_files():
+    """حذف الملفات القديمة كل 10 دقائق"""
     while True:
         time.sleep(600)
         current_time = time.time()
@@ -358,20 +359,14 @@ def download():
     temp_dir = tempfile.mkdtemp()
     
     try:
-        # إعداد اختيار أفضل جودة مدمجة فوراً بدون تعقيدات
         ydl_opts = {
-            'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+            'format': 'bestvideo+bestaudio/best',
             'outtmpl': os.path.join(temp_dir, '%(title).100s.%(ext)s'),
             'merge_output_format': 'mp4',
             'quiet': True,
             'no_warnings': True,
             'restrictfilenames': True,
             'nocheckcertificate': True,
-            'extractor_args': {
-                'youtube': {
-                    'player_client': ['ios', 'android', 'web']
-                }
-            },
             'http_headers': {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             },
@@ -383,7 +378,7 @@ def download():
             
             if not os.path.exists(filename):
                 base = filename.rsplit('.', 1)[0]
-                for ext in ['mp4', 'mkv', 'webm']:
+                for ext in ['mp4', 'webm', 'mkv']:
                     test_path = f"{base}.{ext}"
                     if os.path.exists(test_path):
                         filename = test_path
@@ -403,9 +398,11 @@ def download():
             else:
                 size_str = f"{file_size / (1024 * 1024):.1f} MB"
             
+            display_name = os.path.basename(filename)
+            
             prepared_files[file_id] = {
                 'path': final_path,
-                'filename': os.path.basename(filename),
+                'filename': display_name,
                 'size': size_str,
                 'created_at': time.time()
             }
@@ -415,7 +412,7 @@ def download():
             return jsonify({
                 'success': True,
                 'file_id': file_id,
-                'filename': os.path.basename(filename),
+                'filename': display_name,
                 'size': size_str,
                 'title': info.get('title', 'Unknown')[:100]
             })
