@@ -73,16 +73,16 @@ HTML_TEMPLATE = '''
         
         .logo-icon {
             text-align: center;
-            font-size: 50px;
-            margin-bottom: 10px;
+            font-size: 45px;
+            margin-bottom: 5px;
             filter: drop-shadow(0 0 10px rgba(212, 175, 55, 0.3));
         }
         
         h1 {
             text-align: center;
             color: var(--gold);
-            margin-bottom: 8px;
-            font-size: 28px;
+            margin-bottom: 5px;
+            font-size: 26px;
             font-weight: 700;
             letter-spacing: 1px;
         }
@@ -90,12 +90,12 @@ HTML_TEMPLATE = '''
         .subtitle {
             text-align: center;
             color: var(--text-muted);
-            margin-bottom: 25px;
+            margin-bottom: 20px;
             font-size: 13px;
         }
         
         .input-group {
-            margin-bottom: 18px;
+            margin-bottom: 15px;
             position: relative;
         }
         
@@ -134,7 +134,7 @@ HTML_TEMPLATE = '''
             font-size: 13px;
         }
         
-        .download-btn-main {
+        button {
             width: 100%;
             padding: 16px;
             background: linear-gradient(135deg, var(--gold-dark) 0%, var(--gold) 50%, var(--gold-light) 100%);
@@ -148,16 +148,16 @@ HTML_TEMPLATE = '''
             letter-spacing: 1px;
         }
         
-        .download-btn-main:hover {
+        button:hover {
             transform: translateY(-2px);
             box-shadow: 0 10px 30px rgba(212, 175, 55, 0.3);
         }
         
-        .download-btn-main:active {
+        button:active {
             transform: translateY(0);
         }
         
-        .download-btn-main:disabled {
+        button:disabled {
             opacity: 0.6;
             cursor: not-allowed;
             transform: none;
@@ -194,7 +194,7 @@ HTML_TEMPLATE = '''
             border: 1px solid rgba(212, 175, 55, 0.2);
         }
         
-        .download-link-btn {
+        .download-btn {
             display: inline-block;
             background: var(--gold);
             color: var(--black);
@@ -206,7 +206,7 @@ HTML_TEMPLATE = '''
             transition: all 0.3s;
         }
         
-        .download-link-btn:hover {
+        .download-btn:hover {
             background: var(--gold-light);
             box-shadow: 0 8px 25px rgba(212, 175, 55, 0.4);
         }
@@ -220,8 +220,7 @@ HTML_TEMPLATE = '''
             color: var(--gold);
             text-align: center;
             margin-bottom: 10px;
-            font-size: 14px;
-            font-weight: bold;
+            font-size: 13px;
         }
         
         .quality-options {
@@ -229,7 +228,7 @@ HTML_TEMPLATE = '''
             flex-wrap: wrap;
             gap: 8px;
             justify-content: center;
-            max-height: 220px;
+            max-height: 200px;
             overflow-y: auto;
             padding: 5px;
         }
@@ -238,12 +237,12 @@ HTML_TEMPLATE = '''
             background: var(--black-lighter);
             color: var(--gold);
             border: 1px solid rgba(212, 175, 55, 0.3);
-            padding: 10px 16px;
+            padding: 10px 14px;
             border-radius: 10px;
             cursor: pointer;
-            font-size: 13px;
+            font-size: 12px;
             transition: all 0.3s;
-            min-width: 85px;
+            min-width: 80px;
             text-align: center;
         }
         
@@ -260,7 +259,7 @@ HTML_TEMPLATE = '''
         
         .footer {
             text-align: center;
-            margin-top: 25px;
+            margin-top: 20px;
             padding-top: 18px;
             border-top: 1px solid rgba(212, 175, 55, 0.1);
         }
@@ -311,7 +310,7 @@ HTML_TEMPLATE = '''
             <div class="quality-options" id="qualityOptions"></div>
         </div>
         
-        <button class="download-btn-main" onclick="startDownload()" id="downloadBtn">
+        <button onclick="startDownload()" id="downloadBtn">
             تحميل 🚀
         </button>
         
@@ -345,7 +344,7 @@ HTML_TEMPLATE = '''
             downloadBtn.disabled = true;
             downloadBtn.innerHTML = '⏳ جاري الفحص... <span class="spinner"></span>';
             messageDiv.className = 'message loading';
-            messageDiv.innerHTML = '🔍 جاري فحص الرابط واستخراج الجودات...';
+            messageDiv.innerHTML = '🔍 جاري فحص الرابط...';
             
             fetch('/get-formats', {
                 method: 'POST',
@@ -359,12 +358,12 @@ HTML_TEMPLATE = '''
                 if (data.success && data.formats && data.formats.length > 1) {
                     showQualityOptions(data.formats);
                     messageDiv.className = 'message success';
-                    messageDiv.innerHTML = '✅ تم العثور على الفيديو! اختر الجودة ثم اضغط تحميل';
+                    messageDiv.innerHTML = '✅ اختر الجودة ثم اضغط تحميل';
                     downloadBtn.innerHTML = 'تحميل 🚀';
                     downloadBtn.onclick = downloadWithQuality;
                 } else if (data.success) {
                     messageDiv.className = 'message loading';
-                    messageDiv.innerHTML = '⏳ جاري التحميل المباشر...';
+                    messageDiv.innerHTML = '⏳ جاري التحميل...';
                     proceedDownload(url, selectedQuality);
                 } else {
                     messageDiv.className = 'message error';
@@ -414,7 +413,7 @@ HTML_TEMPLATE = '''
             downloadBtn.disabled = true;
             downloadBtn.innerHTML = '⏳ جاري التحميل... <span class="spinner"></span>';
             messageDiv.className = 'message loading';
-            messageDiv.innerHTML = '📥 جاري تحميل الفيديو من السيرفر...';
+            messageDiv.innerHTML = '📥 جاري التحميل من السيرفر...';
             
             fetch('/download', {
                 method: 'POST',
@@ -433,7 +432,7 @@ HTML_TEMPLATE = '''
                         ✅ تم التجهيز!
                         <br>📁 ${data.filename}
                         <br>📏 ${data.size}
-                        <br><a href="/get-file/${data.file_id}" class="download-link-btn" download>📥 تحميل الآن</a>
+                        <br><a href="/get-file/${data.file_id}" class="download-btn" download>📥 تحميل الآن</a>
                     `;
                     document.getElementById('qualitySection').style.display = 'none';
                 } else {
@@ -492,13 +491,11 @@ def get_formats():
             'quiet': True,
             'no_warnings': True,
             'extract_flat': False,
-            'extractor_args': {
-                'youtube': {
-                    'player_client': ['android', 'ios', 'web'],
-                }
-            },
+            'nocheckcertificate': True,
             'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language': 'en-us,en;q=0.5',
             }
         }
         
@@ -534,7 +531,11 @@ def get_formats():
             formats.sort(key=lambda x: int(x['quality'].replace('p', '')), reverse=True)
             
             if not formats:
-                formats = [{'id': 'best[ext=mp4]/best', 'label': '🎬 أفضل جودة متاحة', 'quality': 'best'}]
+                formats = [{
+                    'id': 'best[ext=mp4]/best',
+                    'label': '🎬 أفضل جودة متاحة',
+                    'quality': 'best'
+                }]
             
             return jsonify({
                 'success': True,
@@ -543,7 +544,10 @@ def get_formats():
             })
                 
     except Exception as e:
-        return jsonify({'success': False, 'error': f'خطأ: {str(e)[:200]}'})
+        error_msg = str(e)
+        if 'Sign in to confirm' in error_msg:
+            error_msg = 'يوتيوب يطلب تأكيد بشري. جاري تجربة طريقة بديلة...'
+        return jsonify({'success': False, 'error': error_msg[:200]})
 
 @app.route('/download', methods=['POST'])
 def download():
@@ -563,13 +567,9 @@ def download():
             'quiet': True,
             'no_warnings': True,
             'restrictfilenames': True,
-            'extractor_args': {
-                'youtube': {
-                    'player_client': ['android', 'ios', 'web'],
-                }
-            },
+            'nocheckcertificate': True,
             'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
             },
         }
         
@@ -594,7 +594,10 @@ def download():
             shutil.copy2(filename, final_path)
             
             file_size = os.path.getsize(final_path)
-            size_str = f"{file_size / 1024:.1f} KB" if file_size < 1024 * 1024 else f"{file_size / (1024 * 1024):.1f} MB"
+            if file_size < 1024 * 1024:
+                size_str = f"{file_size / 1024:.1f} KB"
+            else:
+                size_str = f"{file_size / (1024 * 1024):.1f} MB"
             
             prepared_files[file_id] = {
                 'path': final_path,
