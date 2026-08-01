@@ -322,7 +322,6 @@ HTML_TEMPLATE = '''
     </div>
     
     <script>
-        // التطبيق يعمل على تحميل الفيديو فقط
         let selectedQuality = 'best';
         
         function selectQuality(formatId, element) {
@@ -350,7 +349,7 @@ HTML_TEMPLATE = '''
             fetch('/get-formats', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: 'url=' + encodeURIComponent(url) + '&type=video'
+                body: 'url=' + encodeURIComponent(url)
             })
             .then(response => response.json())
             .then(data => {
@@ -419,7 +418,7 @@ HTML_TEMPLATE = '''
             fetch('/download', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: 'url=' + encodeURIComponent(url) + '&format=' + quality + '&type=video'
+                body: 'url=' + encodeURIComponent(url) + '&format=' + quality
             })
             .then(response => response.json())
             .then(data => {
@@ -481,6 +480,17 @@ def is_youtube_url(url):
     """فحص إذا كان الرابط من يوتيوب"""
     return ('youtube.com' in url) or ('youtu.be' in url)
 
+def get_combined_format_id(f):
+    """
+    يختار أفضل تنسيق فيديو + صوت:
+    - إذا كان التنسيق يحتوي على صوت (acodec != 'none')، نستخدم format_id فقط (لأنه مدمج)
+    - إذا كان بدون صوت، نحاول دمجه مع bestaudio
+    """
+    if f.get('acodec') != 'none':
+        return f['format_id']  # بالفعل يحتوي على صوت
+    else:
+        return f"{f['format_id']}+bestaudio/best"
+
 @app.route('/')
 def index():
     return render_template_string(HTML_TEMPLATE)
@@ -492,7 +502,6 @@ def get_formats():
     if not url:
         return jsonify({'success': False, 'error': 'من فضلك أدخل رابط الفيديو'})
     
-    # رفض روابط يوتيوب
     if is_youtube_url(url):
         return jsonify({'success': False, 'error': 'عذراً، تحميل فيديوهات يوتيوب غير مدعوم حالياً'})
     
@@ -512,7 +521,6 @@ def get_formats():
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
             
-            # فيديو فقط
             formats = []
             seen_resolutions = set()
             
@@ -521,7 +529,6 @@ def get_formats():
                 if height and f.get('vcodec') != 'none':
                     if height not in seen_resolutions:
                         seen_resolutions.add(height)
-                        has_audio = f.get('acodec') != 'none'
                         filesize = f.get('filesize')
                         size_str = ''
                         if filesize:
@@ -532,9 +539,13 @@ def get_formats():
                             else:
                                 size_str = "(حجم كبير)"
                         
+                        # أيقونة الصوت حسب وجود acodec
+                        has_audio = f.get('acodec') != 'none'
                         audio_icon = '🔊' if has_audio else '🔇'
+                        
+                        combined_id = get_combined_format_id(f)
                         formats.append({
-                            'id': f"{f['format_id']}+bestaudio/best",
+                            'id': combined_id,
                             'label': f"{audio_icon} {height}p {size_str}",
                             'quality': f"{height}p"
                         })
@@ -543,7 +554,7 @@ def get_formats():
             
             if not formats:
                 formats = [{
-                    'id': 'best[ext=mp4]/best',
+                    'id': 'bestvideo+bestaudio/best',
                     'label': '🎬 أفضل جودة متاحة',
                     'quality': 'best'
                 }]
@@ -557,25 +568,30 @@ def get_formats():
                 
     except Exception as e:
         error_msg = str(e)
+        # تحسين رسائل خطأ إنستغرام
+        if 'This content isn\'t available to everyone' in error_msg:
+            error_msg = 'هذا المحتوى خاص أو مقيد ولا يمكن تحميله'
+        elif 'copyright' in error_msg.lower():
+            error_msg = 'لا يمكن التحميل بسبب حقوق النشر'
         return jsonify({'success': False, 'error': error_msg[:200]})
 
 @app.route('/download', methods=['POST'])
 def download():
     url = request.form.get('url')
-    format_id = request.form.get('format', 'best')
+    format_id = request.form.get('format', 'bestvideo+bestaudio/best')
     
     if not url:
         return jsonify({'success': False, 'error': 'من فضلك أدخل رابط الفيديو'})
     
-    # رفض روابط يوتيوب
     if is_youtube_url(url):
         return jsonify({'success': False, 'error': 'عذراً، تحميل فيديوهات يوتيوب غير مدعوم حالياً'})
     
     temp_dir = tempfile.mkdtemp()
     
     try:
+        # استخدام التنسيق المختار مباشرة
         ydl_opts = {
-            'format': format_id if format_id != 'best' else 'best[ext=mp4]/best',
+            'format': format_id,
             'outtmpl': os.path.join(temp_dir, '%(title).100s.%(ext)s'),
             'merge_output_format': 'mp4',
             'quiet': True,
@@ -615,7 +631,6 @@ def download():
                 size_str = f"{file_size / (1024 * 1024):.1f} MB"
             
             display_name = os.path.basename(filename)
-            # تأكد من الامتداد mp4
             if not display_name.lower().endswith('.mp4'):
                 display_name = display_name.rsplit('.', 1)[0] + '.mp4'
             
@@ -642,7 +657,12 @@ def download():
             shutil.rmtree(temp_dir, ignore_errors=True)
         except:
             pass
-        return jsonify({'success': False, 'error': f'فشل التحميل: {str(e)[:200]}'})
+        error_msg = str(e)
+        if 'This content isn\'t available' in error_msg:
+            error_msg = 'هذا المحتوى خاص أو مقيد ولا يمكن تحميله'
+        elif 'copyright' in error_msg.lower():
+            error_msg = 'لا يمكن التحميل بسبب حقوق النشر'
+        return jsonify({'success': False, 'error': f'فشل التحميل: {error_msg[:200]}'})
 
 @app.route('/get-file/<file_id>')
 def get_file(file_id):
