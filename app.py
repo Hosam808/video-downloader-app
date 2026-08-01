@@ -211,52 +211,6 @@ HTML_TEMPLATE = '''
             box-shadow: 0 8px 25px rgba(212, 175, 55, 0.4);
         }
         
-        .quality-section {
-            margin: 15px 0;
-            display: none;
-        }
-        
-        .quality-title {
-            color: var(--gold);
-            text-align: center;
-            margin-bottom: 10px;
-            font-size: 13px;
-        }
-        
-        .quality-options {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            justify-content: center;
-            max-height: 200px;
-            overflow-y: auto;
-            padding: 5px;
-        }
-        
-        .quality-btn {
-            background: var(--black-lighter);
-            color: var(--gold);
-            border: 1px solid rgba(212, 175, 55, 0.3);
-            padding: 10px 14px;
-            border-radius: 10px;
-            cursor: pointer;
-            font-size: 12px;
-            transition: all 0.3s;
-            min-width: 80px;
-            text-align: center;
-        }
-        
-        .quality-btn:hover {
-            background: rgba(212, 175, 55, 0.15);
-            border-color: var(--gold);
-        }
-        
-        .quality-btn.selected {
-            background: var(--gold);
-            color: var(--black);
-            font-weight: bold;
-        }
-        
         .footer {
             text-align: center;
             margin-top: 20px;
@@ -298,16 +252,11 @@ HTML_TEMPLATE = '''
     <div class="container">
         <div class="logo-icon">🎥</div>
         <h1>محمل الفيديوهات</h1>
-        <p class="subtitle">حمل من أي منصة بأفضل جودة</p>
+        <p class="subtitle">حمل من أي منصة بجودة متوسطة (480p) وسريعة</p>
         
         <div class="input-group">
             <span class="input-icon">🔗</span>
             <input type="text" id="url" placeholder="الصق رابط الفيديو هنا..." />
-        </div>
-        
-        <div class="quality-section" id="qualitySection">
-            <p class="quality-title">اختر الجودة:</p>
-            <div class="quality-options" id="qualityOptions"></div>
         </div>
         
         <button onclick="startDownload()" id="downloadBtn">
@@ -322,14 +271,6 @@ HTML_TEMPLATE = '''
     </div>
     
     <script>
-        let selectedQuality = 'best';
-        
-        function selectQuality(formatId, element) {
-            document.querySelectorAll('.quality-btn').forEach(btn => btn.classList.remove('selected'));
-            element.classList.add('selected');
-            selectedQuality = formatId;
-        }
-        
         function startDownload() {
             const url = document.getElementById('url').value.trim();
             const messageDiv = document.getElementById('message');
@@ -342,11 +283,11 @@ HTML_TEMPLATE = '''
             }
             
             downloadBtn.disabled = true;
-            downloadBtn.innerHTML = '⏳ جاري الفحص... <span class="spinner"></span>';
+            downloadBtn.innerHTML = '⏳ جاري التحميل... <span class="spinner"></span>';
             messageDiv.className = 'message loading';
-            messageDiv.innerHTML = '🔍 جاري فحص الرابط...';
+            messageDiv.innerHTML = '📥 جاري معالجة الفيديو وتحميله بجودة 480p...';
             
-            fetch('/get-formats', {
+            fetch('/download', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                 body: 'url=' + encodeURIComponent(url)
@@ -354,83 +295,16 @@ HTML_TEMPLATE = '''
             .then(response => response.json())
             .then(data => {
                 downloadBtn.disabled = false;
-                
-                if (data.success && data.formats && data.formats.length > 0) {
-                    showQualityOptions(data.formats);
-                    messageDiv.className = 'message success';
-                    messageDiv.innerHTML = '✅ اختر الجودة ثم اضغط تحميل';
-                    downloadBtn.innerHTML = 'تحميل 🚀';
-                    downloadBtn.onclick = downloadWithQuality;
-                } else {
-                    messageDiv.className = 'message error';
-                    messageDiv.textContent = '❌ ' + (data.error || 'خطأ غير معروف');
-                    downloadBtn.innerHTML = 'تحميل 🚀';
-                    downloadBtn.onclick = startDownload;
-                }
-            })
-            .catch(error => {
-                downloadBtn.disabled = false;
-                messageDiv.className = 'message error';
-                messageDiv.textContent = '❌ حدث خطأ في الاتصال';
                 downloadBtn.innerHTML = 'تحميل 🚀';
-                downloadBtn.onclick = startDownload;
-            });
-        }
-        
-        function showQualityOptions(formats) {
-            const section = document.getElementById('qualitySection');
-            const options = document.getElementById('qualityOptions');
-            section.style.display = 'block';
-            options.innerHTML = '';
-            
-            formats.forEach((format, index) => {
-                const btn = document.createElement('button');
-                btn.className = 'quality-btn' + (index === 0 ? ' selected' : '');
-                btn.textContent = format.label;
-                btn.onclick = function() { selectQuality(format.id, this); };
-                options.appendChild(btn);
-            });
-            
-            if (formats.length > 0) {
-                selectedQuality = formats[0].id;
-            }
-        }
-        
-        function downloadWithQuality() {
-            const url = document.getElementById('url').value.trim();
-            if (!url) return;
-            proceedDownload(url, selectedQuality);
-        }
-        
-        function proceedDownload(url, quality) {
-            const messageDiv = document.getElementById('message');
-            const downloadBtn = document.getElementById('downloadBtn');
-            
-            downloadBtn.disabled = true;
-            downloadBtn.innerHTML = '⏳ جاري التحميل... <span class="spinner"></span>';
-            messageDiv.className = 'message loading';
-            messageDiv.innerHTML = '📥 جاري تحميل الفيديو من السيرفر...';
-            
-            fetch('/download', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: 'url=' + encodeURIComponent(url) + '&format=' + encodeURIComponent(quality)
-            })
-            .then(response => response.json())
-            .then(data => {
-                downloadBtn.disabled = false;
-                downloadBtn.innerHTML = 'تحميل 🚀';
-                downloadBtn.onclick = startDownload;
                 
                 if (data.success) {
                     messageDiv.className = 'message success';
                     messageDiv.innerHTML = `
-                        ✅ تم التجهيز!
+                        ✅ تم تجهيز الفيديو بنجاح!
                         <br>📁 ${data.filename}
-                        <br>📏 ${data.size}
-                        <br><a href="/get-file/${data.file_id}" class="download-btn" download>📥 تحميل الآن</a>
+                        <br>📏 الحجم: ${data.size}
+                        <br><a href="/get-file/${data.file_id}" class="download-btn" download>📥 اضغط هنا للتحميل المباشر</a>
                     `;
-                    document.getElementById('qualitySection').style.display = 'none';
                 } else {
                     messageDiv.className = 'message error';
                     messageDiv.textContent = '❌ ' + (data.error || 'فشل التحميل');
@@ -439,9 +313,8 @@ HTML_TEMPLATE = '''
             .catch(error => {
                 downloadBtn.disabled = false;
                 downloadBtn.innerHTML = 'تحميل 🚀';
-                downloadBtn.onclick = startDownload;
                 messageDiv.className = 'message error';
-                messageDiv.textContent = '❌ حدث خطأ في الاتصال';
+                messageDiv.textContent = '❌ حدث خطأ في الاتصال بالسيرفر';
             });
         }
     </script>
@@ -475,78 +348,9 @@ cleanup_thread.start()
 def index():
     return render_template_string(HTML_TEMPLATE)
 
-@app.route('/get-formats', methods=['POST'])
-def get_formats():
-    url = request.form.get('url')
-    
-    if not url:
-        return jsonify({'success': False, 'error': 'من فضلك أدخل رابط الفيديو'})
-    
-    try:
-        ydl_opts = {
-            'quiet': True,
-            'no_warnings': True,
-            'extract_flat': False,
-            'nocheckcertificate': True,
-            'extractor_args': {
-                'youtube': {
-                    'player_client': ['android', 'web']
-                }
-            },
-            'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            }
-        }
-        
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=False)
-            
-            formats = []
-            seen_heights = set()
-            
-            # جلب الجودات الشائعة بأسلوب دقيق يعتمد على الارتفاع (height)
-            raw_formats = info.get('formats', [])
-            
-            for f in raw_formats:
-                height = f.get('height')
-                vcodec = f.get('vcodec', 'none')
-                
-                if height and vcodec != 'none' and height >= 144:
-                    if height not in seen_heights:
-                        seen_heights.add(height)
-                        
-                        # نطلب اختيار صيغة الفيديو بهذه الدقة المحددة مع أفضل صوت
-                        format_spec = f"bestvideo[height={height}]+bestaudio/best[height={height}]/best"
-                        
-                        formats.append({
-                            'id': format_spec,
-                            'label': f"🔊 {height}p",
-                            'height': height
-                        })
-            
-            # ترتيب الجودات من الأكبر للأصغر
-            formats.sort(key=lambda x: x['height'], reverse=True)
-            
-            if not formats:
-                formats = [{
-                    'id': 'bestvideo+bestaudio/best',
-                    'label': '🎬 أفضل جودة متاحة',
-                    'height': 0
-                }]
-            
-            return jsonify({
-                'success': True,
-                'formats': formats[:8],
-                'title': info.get('title', 'Unknown')[:100]
-            })
-                
-    except Exception as e:
-        return jsonify({'success': False, 'error': f'تعذر قراءة الجودات: {str(e)[:150]}'})
-
 @app.route('/download', methods=['POST'])
 def download():
     url = request.form.get('url')
-    format_id = request.form.get('format', 'best')
     
     if not url:
         return jsonify({'success': False, 'error': 'من فضلك أدخل رابط الفيديو'})
@@ -554,8 +358,9 @@ def download():
     temp_dir = tempfile.mkdtemp()
     
     try:
+        # إعداد التحميل بحد أقصى جودة 480p مع الصوت تلقائياً
         ydl_opts = {
-            'format': format_id,
+            'format': 'bestvideo[height<=480]+bestaudio/best[height<=480]/best',
             'outtmpl': os.path.join(temp_dir, '%(title).100s.%(ext)s'),
             'merge_output_format': 'mp4',
             'quiet': True,
@@ -564,11 +369,11 @@ def download():
             'nocheckcertificate': True,
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['android', 'web']
+                    'player_client': ['ios', 'android', 'web']
                 }
             },
             'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             },
         }
         
