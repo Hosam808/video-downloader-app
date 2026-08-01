@@ -499,7 +499,6 @@ HTML_TEMPLATE = '''
 prepared_files = {}
 
 def cleanup_old_files():
-    """حذف الملفات القديمة كل 10 دقائق"""
     while True:
         time.sleep(600)
         current_time = time.time()
@@ -536,11 +535,13 @@ def get_formats():
             'quiet': True,
             'no_warnings': True,
             'extract_flat': False,
-            'nocheckcertificate': True,
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['android', 'ios', 'web'],
+                }
+            },
             'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                'Accept-Language': 'en-us,en;q=0.5',
+                'User-Agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
             }
         }
         
@@ -548,14 +549,9 @@ def get_formats():
             info = ydl.extract_info(url, download=False)
             
             if download_type == 'audio':
-                formats = [{
-                    'id': 'bestaudio/best',
-                    'label': '🎵 أفضل جودة صوت MP3',
-                    'quality': 'best'
-                }]
                 return jsonify({
                     'success': True,
-                    'formats': formats,
+                    'formats': [{'id': 'bestaudio/best', 'label': '🎵 أفضل جودة صوت MP3', 'quality': 'best'}],
                     'title': info.get('title', 'Unknown')[:100],
                     'type': 'audio'
                 })
@@ -589,11 +585,7 @@ def get_formats():
                 formats.sort(key=lambda x: int(x['quality'].replace('p', '')), reverse=True)
                 
                 if not formats:
-                    formats = [{
-                        'id': 'best[ext=mp4]/best',
-                        'label': '🎬 أفضل جودة متاحة',
-                        'quality': 'best'
-                    }]
+                    formats = [{'id': 'best[ext=mp4]/best', 'label': '🎬 أفضل جودة متاحة', 'quality': 'best'}]
                 
                 return jsonify({
                     'success': True,
@@ -603,10 +595,7 @@ def get_formats():
                 })
                 
     except Exception as e:
-        error_msg = str(e)
-        if 'Sign in to confirm' in error_msg:
-            error_msg = 'يوتيوب يطلب تأكيد بشري. جاري تجربة طريقة بديلة...'
-        return jsonify({'success': False, 'error': error_msg[:200]})
+        return jsonify({'success': False, 'error': f'خطأ: {str(e)[:200]}'})
 
 @app.route('/download', methods=['POST'])
 def download():
@@ -620,17 +609,25 @@ def download():
     temp_dir = tempfile.mkdtemp()
     
     try:
+        base_opts = {
+            'quiet': True,
+            'no_warnings': True,
+            'restrictfilenames': True,
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['android', 'ios', 'web'],
+                }
+            },
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36',
+            },
+        }
+        
         if download_type == 'audio':
             ydl_opts = {
+                **base_opts,
                 'format': 'bestaudio/best',
                 'outtmpl': os.path.join(temp_dir, '%(title).100s.%(ext)s'),
-                'quiet': True,
-                'no_warnings': True,
-                'restrictfilenames': True,
-                'nocheckcertificate': True,
-                'http_headers': {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                },
                 'postprocessors': [{
                     'key': 'FFmpegExtractAudio',
                     'preferredcodec': 'mp3',
@@ -639,16 +636,10 @@ def download():
             }
         else:
             ydl_opts = {
+                **base_opts,
                 'format': format_id if format_id != 'best' else 'best[ext=mp4]/best',
                 'outtmpl': os.path.join(temp_dir, '%(title).100s.%(ext)s'),
                 'merge_output_format': 'mp4',
-                'quiet': True,
-                'no_warnings': True,
-                'restrictfilenames': True,
-                'nocheckcertificate': True,
-                'http_headers': {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                },
             }
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -674,10 +665,7 @@ def download():
             shutil.copy2(filename, final_path)
             
             file_size = os.path.getsize(final_path)
-            if file_size < 1024 * 1024:
-                size_str = f"{file_size / 1024:.1f} KB"
-            else:
-                size_str = f"{file_size / (1024 * 1024):.1f} MB"
+            size_str = f"{file_size / 1024:.1f} KB" if file_size < 1024 * 1024 else f"{file_size / (1024 * 1024):.1f} MB"
             
             display_name = os.path.basename(filename)
             if download_type == 'audio':
