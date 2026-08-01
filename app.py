@@ -504,7 +504,7 @@ def cleanup_old_files():
         time.sleep(600)
         current_time = time.time()
         to_delete = []
-        for file_id, info in prepared_files.items():
+        for file_id, info in list(prepared_files.items()):
             if current_time - info['created_at'] > 1800:
                 try:
                     if os.path.exists(info['path']):
@@ -513,7 +513,8 @@ def cleanup_old_files():
                 except:
                     pass
         for file_id in to_delete:
-            del prepared_files[file_id]
+            if file_id in prepared_files:
+                del prepared_files[file_id]
 
 cleanup_thread = threading.Thread(target=cleanup_old_files, daemon=True)
 cleanup_thread.start()
@@ -535,14 +536,7 @@ def get_formats():
             'quiet': True,
             'no_warnings': True,
             'extract_flat': False,
-            'cookiefile': '/dev/null',
             'nocheckcertificate': True,
-            'extractor_args': {
-                'youtube': {
-                    'skip': ['dash', 'hls'],
-                    'player_skip': ['configs', 'webpage'],
-                }
-            },
             'http_headers': {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -634,7 +628,6 @@ def download():
                 'no_warnings': True,
                 'restrictfilenames': True,
                 'nocheckcertificate': True,
-                'cookiefile': '/dev/null',
                 'http_headers': {
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
                 },
@@ -653,7 +646,6 @@ def download():
                 'no_warnings': True,
                 'restrictfilenames': True,
                 'nocheckcertificate': True,
-                'cookiefile': '/dev/null',
                 'http_headers': {
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
                 },
