@@ -677,14 +677,22 @@ def get_file(file_id):
     if not file_info or not os.path.exists(file_info['path']):
         return 'الملف غير موجود أو تم حذفه تلقائياً من السيرفر', 404
     
+    # التأكد من أن اسم التحميل ينتهي بـ .mp4
+    download_name = file_info['filename']
+    if not download_name.lower().endswith('.mp4'):
+        download_name += '.mp4'
+    
     response = send_file(
         file_info['path'],
         as_attachment=True,
-        download_name=file_info['filename'],
-        mimetype='application/octet-stream'
+        download_name=download_name,
+        mimetype='video/mp4'  # ⚡ يجبر المتصفح على حفظه بصيغة mp4
     )
+    # ترويسة إضافية لمنع تغيير الامتداد
+    response.headers['Content-Disposition'] = f'attachment; filename="{download_name}"'
     response.headers['X-Content-Type-Options'] = 'nosniff'
     
+    # حذف بعد التحميل
     def delete_after_send():
         time.sleep(5)
         try:
