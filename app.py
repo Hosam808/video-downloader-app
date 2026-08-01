@@ -252,7 +252,7 @@ HTML_TEMPLATE = '''
     <div class="container">
         <div class="logo-icon">🎥</div>
         <h1>محمل الفيديوهات</h1>
-        <p class="subtitle">حمل من أي منصة بأفضل جودة تلقائياً</p>
+        <p class="subtitle">حمل فيديو من أي منصة بأفضل جودة</p>
         
         <div class="input-group">
             <span class="input-icon">🔗</span>
@@ -285,12 +285,12 @@ HTML_TEMPLATE = '''
             downloadBtn.disabled = true;
             downloadBtn.innerHTML = '⏳ جاري التحميل... <span class="spinner"></span>';
             messageDiv.className = 'message loading';
-            messageDiv.innerHTML = '📥 جاري التحميل من السيرفر بأفضل جودة...';
+            messageDiv.innerHTML = '📥 جاري التحميل من السيرفر...';
             
             fetch('/download', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: 'url=' + encodeURIComponent(url)
+                body: 'url=' + encodeURIComponent(url) + '&format=best&type=video'
             })
             .then(response => response.json())
             .then(data => {
@@ -325,7 +325,6 @@ HTML_TEMPLATE = '''
 prepared_files = {}
 
 def cleanup_old_files():
-    """حذف الملفات القديمة كل 10 دقائق"""
     while True:
         time.sleep(600)
         current_time = time.time()
@@ -349,9 +348,98 @@ cleanup_thread.start()
 def index():
     return render_template_string(HTML_TEMPLATE)
 
+# ملاحظة: تم الإبقاء على نقطة النهاية /get-formats في الخلفية دون استدعائها من الواجهة،
+# وذلك لعدم التأثير على باقي أجزاء التطبيق. يمكن حذفها لاحقاً إن رغبت.
+@app.route('/get-formats', methods=['POST'])
+def get_formats():
+    url = request.form.get('url')
+    download_type = request.form.get('type', 'video')
+    
+    if not url:
+        return jsonify({'success': False, 'error': 'من فضلك أدخل رابط الفيديو'})
+    
+    try:
+        ydl_opts = {
+            'quiet': True,
+            'no_warnings': True,
+            'extract_flat': False,
+            'nocheckcertificate': True,
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language': 'en-us,en;q=0.5',
+            }
+        }
+        
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+            
+            if download_type == 'audio':
+                formats = [{
+                    'id': 'bestaudio/best',
+                    'label': '🎵 أفضل جودة صوت MP3',
+                    'quality': 'best'
+                }]
+                return jsonify({
+                    'success': True,
+                    'formats': formats,
+                    'title': info.get('title', 'Unknown')[:100],
+                    'type': 'audio'
+                })
+            else:
+                formats = []
+                seen_resolutions = set()
+                
+                for f in info.get('formats', []):
+                    height = f.get('height')
+                    if height and f.get('vcodec') != 'none':
+                        if height not in seen_resolutions:
+                            seen_resolutions.add(height)
+                            has_audio = f.get('acodec') != 'none'
+                            filesize = f.get('filesize')
+                            size_str = ''
+                            if filesize:
+                                if filesize < 1024 * 1024:
+                                    size_str = f"({filesize/1024:.0f}KB)"
+                                elif filesize < 100 * 1024 * 1024:
+                                    size_str = f"({filesize/(1024*1024):.0f}MB)"
+                                else:
+                                    size_str = "(حجم كبير)"
+                            
+                            audio_icon = '🔊' if has_audio else '🔇'
+                            formats.append({
+                                'id': f"{f['format_id']}+bestaudio/best",
+                                'label': f"{audio_icon} {height}p {size_str}",
+                                'quality': f"{height}p"
+                            })
+                
+                formats.sort(key=lambda x: int(x['quality'].replace('p', '')), reverse=True)
+                
+                if not formats:
+                    formats = [{
+                        'id': 'best[ext=mp4]/best',
+                        'label': '🎬 أفضل جودة متاحة',
+                        'quality': 'best'
+                    }]
+                
+                return jsonify({
+                    'success': True,
+                    'formats': formats[:10],
+                    'title': info.get('title', 'Unknown')[:100],
+                    'type': 'video'
+                })
+                
+    except Exception as e:
+        error_msg = str(e)
+        if 'Sign in to confirm' in error_msg:
+            error_msg = 'يوتيوب يطلب تأكيد بشري. جاري تجربة طريقة بديلة...'
+        return jsonify({'success': False, 'error': error_msg[:200]})
+
 @app.route('/download', methods=['POST'])
 def download():
     url = request.form.get('url')
+    format_id = request.form.get('format', 'best')
+    download_type = request.form.get('type', 'video')
     
     if not url:
         return jsonify({'success': False, 'error': 'من فضلك أدخل رابط الفيديو'})
@@ -359,18 +447,36 @@ def download():
     temp_dir = tempfile.mkdtemp()
     
     try:
-        ydl_opts = {
-            'format': 'bestvideo+bestaudio/best',
-            'outtmpl': os.path.join(temp_dir, '%(title).100s.%(ext)s'),
-            'merge_output_format': 'mp4',
-            'quiet': True,
-            'no_warnings': True,
-            'restrictfilenames': True,
-            'nocheckcertificate': True,
-            'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            },
-        }
+        if download_type == 'audio':
+            ydl_opts = {
+                'format': 'bestaudio/best',
+                'outtmpl': os.path.join(temp_dir, '%(title).100s.%(ext)s'),
+                'quiet': True,
+                'no_warnings': True,
+                'restrictfilenames': True,
+                'nocheckcertificate': True,
+                'http_headers': {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                },
+                'postprocessors': [{
+                    'key': 'FFmpegExtractAudio',
+                    'preferredcodec': 'mp3',
+                    'preferredquality': '192',
+                }],
+            }
+        else:
+            ydl_opts = {
+                'format': format_id if format_id != 'best' else 'best[ext=mp4]/best',
+                'outtmpl': os.path.join(temp_dir, '%(title).100s.%(ext)s'),
+                'merge_output_format': 'mp4',
+                'quiet': True,
+                'no_warnings': True,
+                'restrictfilenames': True,
+                'nocheckcertificate': True,
+                'http_headers': {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                },
+            }
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
@@ -378,7 +484,8 @@ def download():
             
             if not os.path.exists(filename):
                 base = filename.rsplit('.', 1)[0]
-                for ext in ['mp4', 'webm', 'mkv']:
+                search_exts = ['mp3', 'm4a', 'webm', 'opus'] if download_type == 'audio' else ['mp4', 'webm', 'mkv']
+                for ext in search_exts:
                     test_path = f"{base}.{ext}"
                     if os.path.exists(test_path):
                         filename = test_path
@@ -389,7 +496,8 @@ def download():
                 os.makedirs(permanent_dir)
             
             file_id = str(abs(hash(filename + url + str(time.time()))))[:12]
-            final_path = os.path.join(permanent_dir, f"{file_id}.mp4")
+            final_ext = 'mp3' if download_type == 'audio' else 'mp4'
+            final_path = os.path.join(permanent_dir, f"{file_id}.{final_ext}")
             shutil.copy2(filename, final_path)
             
             file_size = os.path.getsize(final_path)
@@ -399,6 +507,8 @@ def download():
                 size_str = f"{file_size / (1024 * 1024):.1f} MB"
             
             display_name = os.path.basename(filename)
+            if download_type == 'audio':
+                display_name = display_name.rsplit('.', 1)[0] + '.mp3'
             
             prepared_files[file_id] = {
                 'path': final_path,
@@ -414,7 +524,8 @@ def download():
                 'file_id': file_id,
                 'filename': display_name,
                 'size': size_str,
-                'title': info.get('title', 'Unknown')[:100]
+                'title': info.get('title', 'Unknown')[:100],
+                'type': download_type
             })
             
     except Exception as e:
