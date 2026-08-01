@@ -298,7 +298,7 @@ HTML_TEMPLATE = '''
     <div class="container">
         <div class="logo-icon">🎥</div>
         <h1>محمل الفيديوهات</h1>
-        <p class="subtitle">حمل من أي منصة بكل السهولة والجودات المختلفة</p>
+        <p class="subtitle">حمل فيديوهات من منصات متعددة</p>
         
         <div class="input-group">
             <span class="input-icon">🔗</span>
@@ -322,6 +322,7 @@ HTML_TEMPLATE = '''
     </div>
     
     <script>
+        // التطبيق يعمل على تحميل الفيديو فقط
         let selectedQuality = 'best';
         
         function selectQuality(formatId, element) {
@@ -349,7 +350,7 @@ HTML_TEMPLATE = '''
             fetch('/get-formats', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: 'url=' + encodeURIComponent(url)
+                body: 'url=' + encodeURIComponent(url) + '&type=video'
             })
             .then(response => response.json())
             .then(data => {
@@ -418,7 +419,7 @@ HTML_TEMPLATE = '''
             fetch('/download', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: 'url=' + encodeURIComponent(url) + '&format=' + quality
+                body: 'url=' + encodeURIComponent(url) + '&format=' + quality + '&type=video'
             })
             .then(response => response.json())
             .then(data => {
@@ -476,6 +477,10 @@ def cleanup_old_files():
 cleanup_thread = threading.Thread(target=cleanup_old_files, daemon=True)
 cleanup_thread.start()
 
+def is_youtube_url(url):
+    """فحص إذا كان الرابط من يوتيوب"""
+    return ('youtube.com' in url) or ('youtu.be' in url)
+
 @app.route('/')
 def index():
     return render_template_string(HTML_TEMPLATE)
@@ -486,6 +491,10 @@ def get_formats():
     
     if not url:
         return jsonify({'success': False, 'error': 'من فضلك أدخل رابط الفيديو'})
+    
+    # رفض روابط يوتيوب
+    if is_youtube_url(url):
+        return jsonify({'success': False, 'error': 'عذراً، تحميل فيديوهات يوتيوب غير مدعوم حالياً'})
     
     try:
         ydl_opts = {
@@ -502,6 +511,8 @@ def get_formats():
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
+            
+            # فيديو فقط
             formats = []
             seen_resolutions = set()
             
@@ -546,8 +557,6 @@ def get_formats():
                 
     except Exception as e:
         error_msg = str(e)
-        if 'Sign in to confirm' in error_msg:
-            error_msg = 'يوتيوب يطلب تأكيد بشري. جاري تجربة طريقة بديلة...'
         return jsonify({'success': False, 'error': error_msg[:200]})
 
 @app.route('/download', methods=['POST'])
@@ -557,6 +566,10 @@ def download():
     
     if not url:
         return jsonify({'success': False, 'error': 'من فضلك أدخل رابط الفيديو'})
+    
+    # رفض روابط يوتيوب
+    if is_youtube_url(url):
+        return jsonify({'success': False, 'error': 'عذراً، تحميل فيديوهات يوتيوب غير مدعوم حالياً'})
     
     temp_dir = tempfile.mkdtemp()
     
@@ -602,6 +615,9 @@ def download():
                 size_str = f"{file_size / (1024 * 1024):.1f} MB"
             
             display_name = os.path.basename(filename)
+            # تأكد من الامتداد mp4
+            if not display_name.lower().endswith('.mp4'):
+                display_name = display_name.rsplit('.', 1)[0] + '.mp4'
             
             prepared_files[file_id] = {
                 'path': final_path,
@@ -657,4 +673,3 @@ def get_file(file_id):
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
-
