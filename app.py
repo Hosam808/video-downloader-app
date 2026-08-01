@@ -348,8 +348,6 @@ cleanup_thread.start()
 def index():
     return render_template_string(HTML_TEMPLATE)
 
-# ملاحظة: تم الإبقاء على نقطة النهاية /get-formats في الخلفية دون استدعائها من الواجهة،
-# وذلك لعدم التأثير على باقي أجزاء التطبيق. يمكن حذفها لاحقاً إن رغبت.
 @app.route('/get-formats', methods=['POST'])
 def get_formats():
     url = request.form.get('url')
@@ -447,17 +445,29 @@ def download():
     temp_dir = tempfile.mkdtemp()
     
     try:
+        # خيارات مشتركة لتجنب حظر البوت وتسريع التجهيز
+        common_opts = {
+            'quiet': True,
+            'no_warnings': True,
+            'restrictfilenames': True,
+            'nocheckcertificate': True,
+            'no-playlist': True,                # لا تحلل قوائم التشغيل
+            'geo_bypass': True,                # تجاوز الحظر الجغرافي
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['android'],  # يستخدم واجهة Android لتفادي تأكيد "لست روبوت"
+                }
+            },
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+            },
+        }
+        
         if download_type == 'audio':
             ydl_opts = {
+                **common_opts,
                 'format': 'bestaudio/best',
                 'outtmpl': os.path.join(temp_dir, '%(title).100s.%(ext)s'),
-                'quiet': True,
-                'no_warnings': True,
-                'restrictfilenames': True,
-                'nocheckcertificate': True,
-                'http_headers': {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                },
                 'postprocessors': [{
                     'key': 'FFmpegExtractAudio',
                     'preferredcodec': 'mp3',
@@ -466,16 +476,10 @@ def download():
             }
         else:
             ydl_opts = {
+                **common_opts,
                 'format': format_id if format_id != 'best' else 'best[ext=mp4]/best',
                 'outtmpl': os.path.join(temp_dir, '%(title).100s.%(ext)s'),
                 'merge_output_format': 'mp4',
-                'quiet': True,
-                'no_warnings': True,
-                'restrictfilenames': True,
-                'nocheckcertificate': True,
-                'http_headers': {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                },
             }
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
