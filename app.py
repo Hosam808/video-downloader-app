@@ -194,7 +194,7 @@ HTML_TEMPLATE = '''
             border: 1px solid rgba(212, 175, 55, 0.2);
         }
         
-        .download-btn {
+        .download-btn, .browser-btn {
             display: inline-block;
             background: var(--gold);
             color: var(--black);
@@ -202,13 +202,26 @@ HTML_TEMPLATE = '''
             border-radius: 12px;
             text-decoration: none;
             font-weight: 700;
-            margin-top: 10px;
+            margin: 5px;
             transition: all 0.3s;
+            cursor: pointer;
+            border: none;
+        }
+        
+        .browser-btn {
+            background: var(--black-lighter);
+            color: var(--gold);
+            border: 1px solid var(--gold);
         }
         
         .download-btn:hover {
             background: var(--gold-light);
             box-shadow: 0 8px 25px rgba(212, 175, 55, 0.4);
+        }
+        
+        .browser-btn:hover {
+            background: var(--gold);
+            color: var(--black);
         }
         
         .quality-section {
@@ -428,11 +441,14 @@ HTML_TEMPLATE = '''
                 
                 if (data.success) {
                     messageDiv.className = 'message success';
+                    const fileUrl = '/get-file/' + data.file_id;
                     messageDiv.innerHTML = `
                         ✅ تم التجهيز!
                         <br>📁 ${data.filename}
                         <br>📏 ${data.size}
-                        <br><a href="/get-file/${data.file_id}" class="download-btn" download>📥 تحميل الآن</a>
+                        <br>
+                        <a href="${fileUrl}" class="download-btn" download>📥 تحميل مباشر</a>
+                        <a href="${fileUrl}" target="_blank" rel="noopener" class="browser-btn">🌐 تحميل عبر المتصفح</a>
                     `;
                     document.getElementById('qualitySection').style.display = 'none';
                 } else {
@@ -456,7 +472,6 @@ HTML_TEMPLATE = '''
 prepared_files = {}
 
 def cleanup_old_files():
-    """حذف الملفات القديمة كل 10 دقائق"""
     while True:
         time.sleep(600)
         current_time = time.time()
@@ -477,17 +492,11 @@ cleanup_thread = threading.Thread(target=cleanup_old_files, daemon=True)
 cleanup_thread.start()
 
 def is_youtube_url(url):
-    """فحص إذا كان الرابط من يوتيوب"""
     return ('youtube.com' in url) or ('youtu.be' in url)
 
 def get_combined_format_id(f):
-    """
-    يختار أفضل تنسيق فيديو + صوت:
-    - إذا كان التنسيق يحتوي على صوت (acodec != 'none')، نستخدم format_id فقط (لأنه مدمج)
-    - إذا كان بدون صوت، نحاول دمجه مع bestaudio
-    """
     if f.get('acodec') != 'none':
-        return f['format_id']  # بالفعل يحتوي على صوت
+        return f['format_id']
     else:
         return f"{f['format_id']}+bestaudio/best"
 
@@ -539,7 +548,6 @@ def get_formats():
                             else:
                                 size_str = "(حجم كبير)"
                         
-                        # أيقونة الصوت حسب وجود acodec
                         has_audio = f.get('acodec') != 'none'
                         audio_icon = '🔊' if has_audio else '🔇'
                         
@@ -568,7 +576,6 @@ def get_formats():
                 
     except Exception as e:
         error_msg = str(e)
-        # تحسين رسائل خطأ إنستغرام
         if 'This content isn\'t available to everyone' in error_msg:
             error_msg = 'هذا المحتوى خاص أو مقيد ولا يمكن تحميله'
         elif 'copyright' in error_msg.lower():
@@ -589,7 +596,6 @@ def download():
     temp_dir = tempfile.mkdtemp()
     
     try:
-        # استخدام التنسيق المختار مباشرة
         ydl_opts = {
             'format': format_id,
             'outtmpl': os.path.join(temp_dir, '%(title).100s.%(ext)s'),
@@ -674,8 +680,10 @@ def get_file(file_id):
     response = send_file(
         file_info['path'],
         as_attachment=True,
-        download_name=file_info['filename']
+        download_name=file_info['filename'],
+        mimetype='application/octet-stream'
     )
+    response.headers['X-Content-Type-Options'] = 'nosniff'
     
     def delete_after_send():
         time.sleep(5)
