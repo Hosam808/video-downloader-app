@@ -413,12 +413,12 @@ HTML_TEMPLATE = '''
             downloadBtn.disabled = true;
             downloadBtn.innerHTML = '⏳ جاري التحميل... <span class="spinner"></span>';
             messageDiv.className = 'message loading';
-            messageDiv.innerHTML = '📥 جاري التحميل من السيرفر...';
+            messageDiv.innerHTML = '📥 جاري تحميل الفيديو من السيرفر...';
             
             fetch('/download', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: 'url=' + encodeURIComponent(url) + '&format=' + quality
+                body: 'url=' + encodeURIComponent(url) + '&format=' + encodeURIComponent(quality)
             })
             .then(response => response.json())
             .then(data => {
@@ -561,7 +561,7 @@ def download():
     
     try:
         ydl_opts = {
-            'format': format_id if format_id != 'best' else 'best[ext=mp4]/best',
+            'format': format_id,
             'outtmpl': os.path.join(temp_dir, '%(title).100s.%(ext)s'),
             'merge_output_format': 'mp4',
             'quiet': True,
