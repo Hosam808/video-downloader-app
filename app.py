@@ -252,7 +252,7 @@ HTML_TEMPLATE = '''
     <div class="container">
         <div class="logo-icon">🎥</div>
         <h1>محمل الفيديوهات</h1>
-        <p class="subtitle">حمل من أي منصة بجودة متوسطة (480p) وسريعة</p>
+        <p class="subtitle">حمل من أي منصة بأعلى جودة تلقائياً</p>
         
         <div class="input-group">
             <span class="input-icon">🔗</span>
@@ -285,7 +285,7 @@ HTML_TEMPLATE = '''
             downloadBtn.disabled = true;
             downloadBtn.innerHTML = '⏳ جاري التحميل... <span class="spinner"></span>';
             messageDiv.className = 'message loading';
-            messageDiv.innerHTML = '📥 جاري معالجة الفيديو وتحميله بجودة 480p...';
+            messageDiv.innerHTML = '📥 جاري معالجة الفيديو وتحميله بليستة أفضل جودة...';
             
             fetch('/download', {
                 method: 'POST',
@@ -358,9 +358,9 @@ def download():
     temp_dir = tempfile.mkdtemp()
     
     try:
-        # إعداد التحميل بحد أقصى جودة 480p مع الصوت تلقائياً
+        # إعداد اختيار أفضل جودة مدمجة فوراً بدون تعقيدات
         ydl_opts = {
-            'format': 'bestvideo[height<=480]+bestaudio/best[height<=480]/best',
+            'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
             'outtmpl': os.path.join(temp_dir, '%(title).100s.%(ext)s'),
             'merge_output_format': 'mp4',
             'quiet': True,
@@ -456,4 +456,3 @@ def get_file(file_id):
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
-
