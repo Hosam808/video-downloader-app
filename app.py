@@ -211,6 +211,52 @@ HTML_TEMPLATE = '''
             box-shadow: 0 8px 25px rgba(212, 175, 55, 0.4);
         }
         
+        .quality-section {
+            margin: 15px 0;
+            display: none;
+        }
+        
+        .quality-title {
+            color: var(--gold);
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 13px;
+        }
+        
+        .quality-options {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: center;
+            max-height: 200px;
+            overflow-y: auto;
+            padding: 5px;
+        }
+        
+        .quality-btn {
+            background: var(--black-lighter);
+            color: var(--gold);
+            border: 1px solid rgba(212, 175, 55, 0.3);
+            padding: 10px 14px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.3s;
+            min-width: 80px;
+            text-align: center;
+        }
+        
+        .quality-btn:hover {
+            background: rgba(212, 175, 55, 0.15);
+            border-color: var(--gold);
+        }
+        
+        .quality-btn.selected {
+            background: var(--gold);
+            color: var(--black);
+            font-weight: bold;
+        }
+        
         .footer {
             text-align: center;
             margin-top: 20px;
@@ -252,11 +298,16 @@ HTML_TEMPLATE = '''
     <div class="container">
         <div class="logo-icon">🎥</div>
         <h1>محمل الفيديوهات</h1>
-        <p class="subtitle">حمل فيديو من أي منصة بأفضل جودة</p>
+        <p class="subtitle">حمل من أي منصة بكل السهولة والجودات المختلفة</p>
         
         <div class="input-group">
             <span class="input-icon">🔗</span>
             <input type="text" id="url" placeholder="الصق رابط الفيديو هنا..." />
+        </div>
+        
+        <div class="quality-section" id="qualitySection">
+            <p class="quality-title">اختر الجودة:</p>
+            <div class="quality-options" id="qualityOptions"></div>
         </div>
         
         <button onclick="startDownload()" id="downloadBtn">
@@ -271,6 +322,14 @@ HTML_TEMPLATE = '''
     </div>
     
     <script>
+        let selectedQuality = 'best';
+        
+        function selectQuality(formatId, element) {
+            document.querySelectorAll('.quality-btn').forEach(btn => btn.classList.remove('selected'));
+            element.classList.add('selected');
+            selectedQuality = formatId;
+        }
+        
         function startDownload() {
             const url = document.getElementById('url').value.trim();
             const messageDiv = document.getElementById('message');
@@ -283,6 +342,75 @@ HTML_TEMPLATE = '''
             }
             
             downloadBtn.disabled = true;
+            downloadBtn.innerHTML = '⏳ جاري الفحص... <span class="spinner"></span>';
+            messageDiv.className = 'message loading';
+            messageDiv.innerHTML = '🔍 جاري فحص الرابط...';
+            
+            fetch('/get-formats', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: 'url=' + encodeURIComponent(url)
+            })
+            .then(response => response.json())
+            .then(data => {
+                downloadBtn.disabled = false;
+                
+                if (data.success && data.formats && data.formats.length > 1) {
+                    showQualityOptions(data.formats);
+                    messageDiv.className = 'message success';
+                    messageDiv.innerHTML = '✅ اختر الجودة ثم اضغط تحميل';
+                    downloadBtn.innerHTML = 'تحميل 🚀';
+                    downloadBtn.onclick = downloadWithQuality;
+                } else if (data.success) {
+                    messageDiv.className = 'message loading';
+                    messageDiv.innerHTML = '⏳ جاري التحميل...';
+                    proceedDownload(url, selectedQuality);
+                } else {
+                    messageDiv.className = 'message error';
+                    messageDiv.textContent = '❌ ' + (data.error || 'خطأ غير معروف');
+                    downloadBtn.innerHTML = 'تحميل 🚀';
+                    downloadBtn.onclick = startDownload;
+                }
+            })
+            .catch(error => {
+                downloadBtn.disabled = false;
+                messageDiv.className = 'message error';
+                messageDiv.textContent = '❌ حدث خطأ في الاتصال';
+                downloadBtn.innerHTML = 'تحميل 🚀';
+                downloadBtn.onclick = startDownload;
+            });
+        }
+        
+        function showQualityOptions(formats) {
+            const section = document.getElementById('qualitySection');
+            const options = document.getElementById('qualityOptions');
+            section.style.display = 'block';
+            options.innerHTML = '';
+            
+            formats.forEach((format, index) => {
+                const btn = document.createElement('button');
+                btn.className = 'quality-btn' + (index === 0 ? ' selected' : '');
+                btn.textContent = format.label;
+                btn.onclick = function() { selectQuality(format.id, this); };
+                options.appendChild(btn);
+            });
+            
+            if (formats.length > 0) {
+                selectedQuality = formats[0].id;
+            }
+        }
+        
+        function downloadWithQuality() {
+            const url = document.getElementById('url').value.trim();
+            if (!url) return;
+            proceedDownload(url, selectedQuality);
+        }
+        
+        function proceedDownload(url, quality) {
+            const messageDiv = document.getElementById('message');
+            const downloadBtn = document.getElementById('downloadBtn');
+            
+            downloadBtn.disabled = true;
             downloadBtn.innerHTML = '⏳ جاري التحميل... <span class="spinner"></span>';
             messageDiv.className = 'message loading';
             messageDiv.innerHTML = '📥 جاري التحميل من السيرفر...';
@@ -290,12 +418,13 @@ HTML_TEMPLATE = '''
             fetch('/download', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: 'url=' + encodeURIComponent(url) + '&format=best&type=video'
+                body: 'url=' + encodeURIComponent(url) + '&format=' + quality
             })
             .then(response => response.json())
             .then(data => {
                 downloadBtn.disabled = false;
                 downloadBtn.innerHTML = 'تحميل 🚀';
+                downloadBtn.onclick = startDownload;
                 
                 if (data.success) {
                     messageDiv.className = 'message success';
@@ -305,6 +434,7 @@ HTML_TEMPLATE = '''
                         <br>📏 ${data.size}
                         <br><a href="/get-file/${data.file_id}" class="download-btn" download>📥 تحميل الآن</a>
                     `;
+                    document.getElementById('qualitySection').style.display = 'none';
                 } else {
                     messageDiv.className = 'message error';
                     messageDiv.textContent = '❌ ' + (data.error || 'فشل التحميل');
@@ -313,6 +443,7 @@ HTML_TEMPLATE = '''
             .catch(error => {
                 downloadBtn.disabled = false;
                 downloadBtn.innerHTML = 'تحميل 🚀';
+                downloadBtn.onclick = startDownload;
                 messageDiv.className = 'message error';
                 messageDiv.textContent = '❌ حدث خطأ في الاتصال';
             });
@@ -325,6 +456,7 @@ HTML_TEMPLATE = '''
 prepared_files = {}
 
 def cleanup_old_files():
+    """حذف الملفات القديمة كل 10 دقائق"""
     while True:
         time.sleep(600)
         current_time = time.time()
@@ -351,7 +483,6 @@ def index():
 @app.route('/get-formats', methods=['POST'])
 def get_formats():
     url = request.form.get('url')
-    download_type = request.form.get('type', 'video')
     
     if not url:
         return jsonify({'success': False, 'error': 'من فضلك أدخل رابط الفيديو'})
@@ -371,61 +502,47 @@ def get_formats():
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
+            formats = []
+            seen_resolutions = set()
             
-            if download_type == 'audio':
+            for f in info.get('formats', []):
+                height = f.get('height')
+                if height and f.get('vcodec') != 'none':
+                    if height not in seen_resolutions:
+                        seen_resolutions.add(height)
+                        has_audio = f.get('acodec') != 'none'
+                        filesize = f.get('filesize')
+                        size_str = ''
+                        if filesize:
+                            if filesize < 1024 * 1024:
+                                size_str = f"({filesize/1024:.0f}KB)"
+                            elif filesize < 100 * 1024 * 1024:
+                                size_str = f"({filesize/(1024*1024):.0f}MB)"
+                            else:
+                                size_str = "(حجم كبير)"
+                        
+                        audio_icon = '🔊' if has_audio else '🔇'
+                        formats.append({
+                            'id': f"{f['format_id']}+bestaudio/best",
+                            'label': f"{audio_icon} {height}p {size_str}",
+                            'quality': f"{height}p"
+                        })
+            
+            formats.sort(key=lambda x: int(x['quality'].replace('p', '')), reverse=True)
+            
+            if not formats:
                 formats = [{
-                    'id': 'bestaudio/best',
-                    'label': '🎵 أفضل جودة صوت MP3',
+                    'id': 'best[ext=mp4]/best',
+                    'label': '🎬 أفضل جودة متاحة',
                     'quality': 'best'
                 }]
-                return jsonify({
-                    'success': True,
-                    'formats': formats,
-                    'title': info.get('title', 'Unknown')[:100],
-                    'type': 'audio'
-                })
-            else:
-                formats = []
-                seen_resolutions = set()
-                
-                for f in info.get('formats', []):
-                    height = f.get('height')
-                    if height and f.get('vcodec') != 'none':
-                        if height not in seen_resolutions:
-                            seen_resolutions.add(height)
-                            has_audio = f.get('acodec') != 'none'
-                            filesize = f.get('filesize')
-                            size_str = ''
-                            if filesize:
-                                if filesize < 1024 * 1024:
-                                    size_str = f"({filesize/1024:.0f}KB)"
-                                elif filesize < 100 * 1024 * 1024:
-                                    size_str = f"({filesize/(1024*1024):.0f}MB)"
-                                else:
-                                    size_str = "(حجم كبير)"
-                            
-                            audio_icon = '🔊' if has_audio else '🔇'
-                            formats.append({
-                                'id': f"{f['format_id']}+bestaudio/best",
-                                'label': f"{audio_icon} {height}p {size_str}",
-                                'quality': f"{height}p"
-                            })
-                
-                formats.sort(key=lambda x: int(x['quality'].replace('p', '')), reverse=True)
-                
-                if not formats:
-                    formats = [{
-                        'id': 'best[ext=mp4]/best',
-                        'label': '🎬 أفضل جودة متاحة',
-                        'quality': 'best'
-                    }]
-                
-                return jsonify({
-                    'success': True,
-                    'formats': formats[:10],
-                    'title': info.get('title', 'Unknown')[:100],
-                    'type': 'video'
-                })
+            
+            return jsonify({
+                'success': True,
+                'formats': formats[:10],
+                'title': info.get('title', 'Unknown')[:100],
+                'type': 'video'
+            })
                 
     except Exception as e:
         error_msg = str(e)
@@ -437,7 +554,6 @@ def get_formats():
 def download():
     url = request.form.get('url')
     format_id = request.form.get('format', 'best')
-    download_type = request.form.get('type', 'video')
     
     if not url:
         return jsonify({'success': False, 'error': 'من فضلك أدخل رابط الفيديو'})
@@ -445,42 +561,18 @@ def download():
     temp_dir = tempfile.mkdtemp()
     
     try:
-        # خيارات مشتركة لتجنب حظر البوت وتسريع التجهيز
-        common_opts = {
+        ydl_opts = {
+            'format': format_id if format_id != 'best' else 'best[ext=mp4]/best',
+            'outtmpl': os.path.join(temp_dir, '%(title).100s.%(ext)s'),
+            'merge_output_format': 'mp4',
             'quiet': True,
             'no_warnings': True,
             'restrictfilenames': True,
             'nocheckcertificate': True,
-            'no-playlist': True,                # لا تحلل قوائم التشغيل
-            'geo_bypass': True,                # تجاوز الحظر الجغرافي
-            'extractor_args': {
-                'youtube': {
-                    'player_client': ['android'],  # يستخدم واجهة Android لتفادي تأكيد "لست روبوت"
-                }
-            },
             'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
             },
         }
-        
-        if download_type == 'audio':
-            ydl_opts = {
-                **common_opts,
-                'format': 'bestaudio/best',
-                'outtmpl': os.path.join(temp_dir, '%(title).100s.%(ext)s'),
-                'postprocessors': [{
-                    'key': 'FFmpegExtractAudio',
-                    'preferredcodec': 'mp3',
-                    'preferredquality': '192',
-                }],
-            }
-        else:
-            ydl_opts = {
-                **common_opts,
-                'format': format_id if format_id != 'best' else 'best[ext=mp4]/best',
-                'outtmpl': os.path.join(temp_dir, '%(title).100s.%(ext)s'),
-                'merge_output_format': 'mp4',
-            }
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
@@ -488,7 +580,7 @@ def download():
             
             if not os.path.exists(filename):
                 base = filename.rsplit('.', 1)[0]
-                search_exts = ['mp3', 'm4a', 'webm', 'opus'] if download_type == 'audio' else ['mp4', 'webm', 'mkv']
+                search_exts = ['mp4', 'webm', 'mkv']
                 for ext in search_exts:
                     test_path = f"{base}.{ext}"
                     if os.path.exists(test_path):
@@ -500,8 +592,7 @@ def download():
                 os.makedirs(permanent_dir)
             
             file_id = str(abs(hash(filename + url + str(time.time()))))[:12]
-            final_ext = 'mp3' if download_type == 'audio' else 'mp4'
-            final_path = os.path.join(permanent_dir, f"{file_id}.{final_ext}")
+            final_path = os.path.join(permanent_dir, f"{file_id}.mp4")
             shutil.copy2(filename, final_path)
             
             file_size = os.path.getsize(final_path)
@@ -511,8 +602,6 @@ def download():
                 size_str = f"{file_size / (1024 * 1024):.1f} MB"
             
             display_name = os.path.basename(filename)
-            if download_type == 'audio':
-                display_name = display_name.rsplit('.', 1)[0] + '.mp3'
             
             prepared_files[file_id] = {
                 'path': final_path,
@@ -529,7 +618,7 @@ def download():
                 'filename': display_name,
                 'size': size_str,
                 'title': info.get('title', 'Unknown')[:100],
-                'type': download_type
+                'type': 'video'
             })
             
     except Exception as e:
@@ -568,3 +657,4 @@ def get_file(file_id):
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+
